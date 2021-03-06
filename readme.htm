@@ -1,0 +1,538 @@
+<h1>portfolioquick</h1>
+<h2>Backend Requirements</h2>
+<ul>
+<li><a href="https://www.docker.com/">Docker</a>.</li>
+<li><a href="https://docs.docker.com/compose/install/">Docker Compose</a>.</li>
+<li><a href="https://python-poetry.org/">Poetry</a> for Python package and environment management.</li>
+</ul>
+<h2>Frontend Requirements</h2>
+<ul>
+<li>Node.js (with <code>npm</code>).</li>
+</ul>
+<h2>Backend local development</h2>
+<ul>
+<li>Start the stack with Docker Compose:</li>
+</ul>
+<pre><code class="language-bash">docker-compose up -d
+</code></pre>
+<ul>
+<li>Now you can open your browser and interact with these URLs:</li>
+</ul>
+<p>Frontend, built with Docker, with routes handled based on the path: http://localhost</p>
+<p>Backend, JSON based web API based on OpenAPI: http://localhost/api/</p>
+<p>Automatic interactive documentation with Swagger UI (from the OpenAPI backend): http://localhost/docs</p>
+<p>Alternative automatic documentation with ReDoc (from the OpenAPI backend): http://localhost/redoc</p>
+<p>PGAdmin, PostgreSQL web administration: http://localhost:5050</p>
+<p>Flower, administration of Celery tasks: http://localhost:5555</p>
+<p>Traefik UI, to see how the routes are being handled by the proxy: http://localhost:8090</p>
+<p><strong>Note</strong>: The first time you start your stack, it might take a minute for it to be ready. While the backend waits for the database to be ready and configures everything. You can check the logs to monitor it.</p>
+<p>To check the logs, run:</p>
+<pre><code class="language-bash">docker-compose logs
+</code></pre>
+<p>To check the logs of a specific service, add the name of the service, e.g.:</p>
+<pre><code class="language-bash">docker-compose logs backend
+</code></pre>
+<p>If your Docker is not running in <code>localhost</code> (the URLs above wouldn't work) check the sections below on <strong>Development with Docker Toolbox</strong> and <strong>Development with a custom IP</strong>.</p>
+<h2>Backend local development, additional details</h2>
+<h3>General workflow</h3>
+<p>By default, the dependencies are managed with <a href="https://python-poetry.org/">Poetry</a>, go there and install it.</p>
+<p>From <code>./backend/app/</code> you can install all the dependencies with:</p>
+<pre><code class="language-console">$ poetry install
+</code></pre>
+<p>Then you can start a shell session with the new environment with:</p>
+<pre><code class="language-console">$ poetry shell
+</code></pre>
+<p>Next, open your editor at <code>./backend/app/</code> (instead of the project root: <code>./</code>), so that you see an <code>./app/</code> directory with your code inside. That way, your editor will be able to find all the imports, etc. Make sure your editor uses the environment you just created with Poetry.</p>
+<p>Modify or add SQLAlchemy models in <code>./backend/app/app/models/</code>, Pydantic schemas in <code>./backend/app/app/schemas/</code>, API endpoints in <code>./backend/app/app/api/</code>, CRUD (Create, Read, Update, Delete) utils in <code>./backend/app/app/crud/</code>. The easiest might be to copy the ones for Items (models, endpoints, and CRUD utils) and update them to your needs.</p>
+<p>Add and modify tasks to the Celery worker in <code>./backend/app/app/worker.py</code>.</p>
+<p>If you need to install any additional package to the worker, add it to the file <code>./backend/app/celeryworker.dockerfile</code>.</p>
+<h3>Docker Compose Override</h3>
+<p>During development, you can change Docker Compose settings that will only affect the local development environment, in the file <code>docker-compose.override.yml</code>.</p>
+<p>The changes to that file only affect the local development environment, not the production environment. So, you can add &quot;temporary&quot; changes that help the development workflow.</p>
+<p>For example, the directory with the backend code is mounted as a Docker &quot;host volume&quot;, mapping the code you change live to the directory inside the container. That allows you to test your changes right away, without having to build the Docker image again. It should only be done during development, for production, you should build the Docker image with a recent version of the backend code. But during development, it allows you to iterate very fast.</p>
+<p>There is also a command override that runs <code>/start-reload.sh</code> (included in the base image) instead of the default <code>/start.sh</code> (also included in the base image). It starts a single server process (instead of multiple, as would be for production) and reloads the process whenever the code changes. Have in mind that if you have a syntax error and save the Python file, it will break and exit, and the container will stop. After that, you can restart the container by fixing the error and running again:</p>
+<pre><code class="language-console">$ docker-compose up -d
+</code></pre>
+<p>There is also a commented out <code>command</code> override, you can uncomment it and comment the default one. It makes the backend container run a process that does &quot;nothing&quot;, but keeps the container alive. That allows you to get inside your running container and execute commands inside, for example a Python interpreter to test installed dependencies, or start the development server that reloads when it detects changes, or start a Jupyter Notebook session.</p>
+<p>To get inside the container with a <code>bash</code> session you can start the stack with:</p>
+<pre><code class="language-console">$ docker-compose up -d
+</code></pre>
+<p>and then <code>exec</code> inside the running container:</p>
+<pre><code class="language-console">$ docker-compose exec backend bash
+</code></pre>
+<p>You should see an output like:</p>
+<pre><code class="language-console">root@7f2607af31c3:/app#
+</code></pre>
+<p>that means that you are in a <code>bash</code> session inside your container, as a <code>root</code> user, under the <code>/app</code> directory.</p>
+<p>There you can use the script <code>/start-reload.sh</code> to run the debug live reloading server. You can run that script from inside the container with:</p>
+<pre><code class="language-console">$ bash /start-reload.sh
+</code></pre>
+<p>...it will look like:</p>
+<pre><code class="language-console">root@7f2607af31c3:/app# bash /start-reload.sh
+</code></pre>
+<p>and then hit enter. That runs the live reloading server that auto reloads when it detects code changes.</p>
+<p>Nevertheless, if it doesn't detect a change but a syntax error, it will just stop with an error. But as the container is still alive and you are in a Bash session, you can quickly restart it after fixing the error, running the same command (&quot;up arrow&quot; and &quot;Enter&quot;).</p>
+<p>...this previous detail is what makes it useful to have the container alive doing nothing and then, in a Bash session, make it run the live reload server.</p>
+<h3>Backend tests</h3>
+<p>To test the backend run:</p>
+<pre><code class="language-console">$ DOMAIN=backend sh ./scripts/test.sh
+</code></pre>
+<p>The file <code>./scripts/test.sh</code> has the commands to generate a testing <code>docker-stack.yml</code> file, start the stack and test it.</p>
+<p>The tests run with Pytest, modify and add tests to <code>./backend/app/app/tests/</code>.</p>
+<p>If you use GitLab CI the tests will run automatically.</p>
+<h4>Local tests</h4>
+<p>Start the stack with this command:</p>
+<pre><code class="language-Bash">DOMAIN=backend sh ./scripts/test-local.sh
+</code></pre>
+<p>The <code>./backend/app</code> directory is mounted as a &quot;host volume&quot; inside the docker container (set in the file <code>docker-compose.dev.volumes.yml</code>).
+You can rerun the test on live code:</p>
+<pre><code class="language-Bash">docker-compose exec backend /app/tests-start.sh
+</code></pre>
+<h4>Test running stack</h4>
+<p>If your stack is already up and you just want to run the tests, you can use:</p>
+<pre><code class="language-bash">docker-compose exec backend /app/tests-start.sh
+</code></pre>
+<p>That <code>/app/tests-start.sh</code> script just calls <code>pytest</code> after making sure that the rest of the stack is running. If you need to pass extra arguments to <code>pytest</code>, you can pass them to that command and they will be forwarded.</p>
+<p>For example, to stop on first error:</p>
+<pre><code class="language-bash">docker-compose exec backend bash /app/tests-start.sh -x
+</code></pre>
+<h4>Test Coverage</h4>
+<p>Because the test scripts forward arguments to <code>pytest</code>, you can enable test coverage HTML report generation by passing <code>--cov-report=html</code>.</p>
+<p>To run the local tests with coverage HTML reports:</p>
+<pre><code class="language-Bash">DOMAIN=backend sh ./scripts/test-local.sh --cov-report=html
+</code></pre>
+<p>To run the tests in a running stack with coverage HTML reports:</p>
+<pre><code class="language-bash">docker-compose exec backend bash /app/tests-start.sh --cov-report=html
+</code></pre>
+<h3>Live development with Python Jupyter Notebooks</h3>
+<p>If you know about Python <a href="http://jupyter.org/">Jupyter Notebooks</a>, you can take advantage of them during local development.</p>
+<p>The <code>docker-compose.override.yml</code> file sends a variable <code>env</code> with a value <code>dev</code> to the build process of the Docker image (during local development) and the <code>Dockerfile</code> has steps to then install and configure Jupyter inside your Docker container.</p>
+<p>So, you can enter into the running Docker container:</p>
+<pre><code class="language-bash">docker-compose exec backend bash
+</code></pre>
+<p>And use the environment variable <code>$JUPYTER</code> to run a Jupyter Notebook with everything configured to listen on the public port (so that you can use it from your browser).</p>
+<p>It will output something like:</p>
+<pre><code class="language-console">root@73e0ec1f1ae6:/app# $JUPYTER
+[I 12:02:09.975 NotebookApp] Writing notebook server cookie secret to /root/.local/share/jupyter/runtime/notebook_cookie_secret
+[I 12:02:10.317 NotebookApp] Serving notebooks from local directory: /app
+[I 12:02:10.317 NotebookApp] The Jupyter Notebook is running at:
+[I 12:02:10.317 NotebookApp] http://(73e0ec1f1ae6 or 127.0.0.1):8888/?token=f20939a41524d021fbfc62b31be8ea4dd9232913476f4397
+[I 12:02:10.317 NotebookApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
+[W 12:02:10.317 NotebookApp] No web browser found: could not locate runnable browser.
+[C 12:02:10.317 NotebookApp]
+
+    Copy/paste this URL into your browser when you connect for the first time,
+    to login with a token:
+        http://(73e0ec1f1ae6 or 127.0.0.1):8888/?token=f20939a41524d021fbfc62b31be8ea4dd9232913476f4397
+</code></pre>
+<p>you can copy that URL and modify the &quot;host&quot; to be <code>localhost</code> or the domain you are using for development (e.g. <code>local.dockertoolbox.tiangolo.com</code>), in the case above, it would be, e.g.:</p>
+<pre><code>http://localhost:8888/token=f20939a41524d021fbfc62b31be8ea4dd9232913476f4397
+</code></pre>
+<p>and then open it in your browser.</p>
+<p>You will have a full Jupyter Notebook running inside your container that has direct access to your database by the container name (<code>db</code>), etc. So, you can just run sections of your backend code directly, for example with <a href="https://code.visualstudio.com/docs/python/jupyter-support-py">VS Code Python Jupyter Interactive Window</a> or <a href="https://github.com/nteract/hydrogen">Hydrogen</a>.</p>
+<h3>Migrations</h3>
+<p>As during local development your app directory is mounted as a volume inside the container, you can also run the migrations with <code>alembic</code> commands inside the container and the migration code will be in your app directory (instead of being only inside the container). So you can add it to your git repository.</p>
+<p>Make sure you create a &quot;revision&quot; of your models and that you &quot;upgrade&quot; your database with that revision every time you change them. As this is what will update the tables in your database. Otherwise, your application will have errors.</p>
+<ul>
+<li>Start an interactive session in the backend container:</li>
+</ul>
+<pre><code class="language-console">$ docker-compose exec backend bash
+</code></pre>
+<ul>
+<li><p>If you created a new model in <code>./backend/app/app/models/</code>, make sure to import it in <code>./backend/app/app/db/base.py</code>, that Python module (<code>base.py</code>) that imports all the models will be used by Alembic.</p>
+</li>
+<li><p>After changing a model (for example, adding a column), inside the container, create a revision, e.g.:</p>
+</li>
+</ul>
+<pre><code class="language-console">$ alembic revision --autogenerate -m &quot;Add column last_name to User model&quot;
+</code></pre>
+<ul>
+<li><p>Commit to the git repository the files generated in the alembic directory.</p>
+</li>
+<li><p>After creating the revision, run the migration in the database (this is what will actually change the database):</p>
+</li>
+</ul>
+<pre><code class="language-console">$ alembic upgrade head
+</code></pre>
+<p>If you don't want to use migrations at all, uncomment the line in the file at <code>./backend/app/app/db/init_db.py</code> with:</p>
+<pre><code class="language-python">Base.metadata.create_all(bind=engine)
+</code></pre>
+<p>and comment the line in the file <code>prestart.sh</code> that contains:</p>
+<pre><code class="language-console">$ alembic upgrade head
+</code></pre>
+<p>If you don't want to start with the default models and want to remove them / modify them, from the beginning, without having any previous revision, you can remove the revision files (<code>.py</code> Python files) under <code>./backend/app/alembic/versions/</code>. And then create a first migration as described above.</p>
+<h3>Development with Docker Toolbox</h3>
+<p>If you are using <strong>Docker Toolbox</strong> in Windows or macOS instead of <strong>Docker for Windows</strong> or <strong>Docker for Mac</strong>, Docker will be running in a VirtualBox Virtual Machine, and it will have a local IP different than <code>127.0.0.1</code>, which is the IP address for <code>localhost</code> in your machine.</p>
+<p>The address of your Docker Toolbox virtual machine would probably be <code>192.168.99.100</code> (that is the default).</p>
+<p>As this is a common case, the domain <code>local.dockertoolbox.tiangolo.com</code> points to that (private) IP, just to help with development (actually <code>dockertoolbox.tiangolo.com</code> and all its subdomains point to that IP). That way, you can start the stack in Docker Toolbox, and use that domain for development. You will be able to open that URL in Chrome and it will communicate with your local Docker Toolbox directly as if it was a cloud server, including CORS (Cross Origin Resource Sharing).</p>
+<p>If you used the default CORS enabled domains while generating the project, <code>local.dockertoolbox.tiangolo.com</code> was configured to be allowed. If you didn't, you will need to add it to the list in the variable <code>BACKEND_CORS_ORIGINS</code> in the <code>.env</code> file.</p>
+<p>To configure it in your stack, follow the section <strong>Change the development &quot;domain&quot;</strong> below, using the domain <code>local.dockertoolbox.tiangolo.com</code>.</p>
+<p>After performing those steps you should be able to open: http://local.dockertoolbox.tiangolo.com and it will be server by your stack in your Docker Toolbox virtual machine.</p>
+<p>Check all the corresponding available URLs in the section at the end.</p>
+<h3>Development in <code>localhost</code> with a custom domain</h3>
+<p>You might want to use something different than <code>localhost</code> as the domain. For example, if you are having problems with cookies that need a subdomain, and Chrome is not allowing you to use <code>localhost</code>.</p>
+<p>In that case, you have two options: you could use the instructions to modify your system <code>hosts</code> file with the instructions below in <strong>Development with a custom IP</strong> or you can just use <code>localhost.tiangolo.com</code>, it is set up to point to <code>localhost</code> (to the IP <code>127.0.0.1</code>) and all its subdomains too. And as it is an actual domain, the browsers will store the cookies you set during development, etc.</p>
+<p>If you used the default CORS enabled domains while generating the project, <code>localhost.tiangolo.com</code> was configured to be allowed. If you didn't, you will need to add it to the list in the variable <code>BACKEND_CORS_ORIGINS</code> in the <code>.env</code> file.</p>
+<p>To configure it in your stack, follow the section <strong>Change the development &quot;domain&quot;</strong> below, using the domain <code>localhost.tiangolo.com</code>.</p>
+<p>After performing those steps you should be able to open: http://localhost.tiangolo.com and it will be server by your stack in <code>localhost</code>.</p>
+<p>Check all the corresponding available URLs in the section at the end.</p>
+<h3>Development with a custom IP</h3>
+<p>If you are running Docker in an IP address different than <code>127.0.0.1</code> (<code>localhost</code>) and <code>192.168.99.100</code> (the default of Docker Toolbox), you will need to perform some additional steps. That will be the case if you are running a custom Virtual Machine, a secondary Docker Toolbox or your Docker is located in a different machine in your network.</p>
+<p>In that case, you will need to use a fake local domain (<code>dev.andrijajovanovic.tk</code>) and make your computer think that the domain is is served by the custom IP (e.g. <code>192.168.99.150</code>).</p>
+<p>If you used the default CORS enabled domains, <code>dev.andrijajovanovic.tk</code> was configured to be allowed. If you want a custom one, you need to add it to the list in the variable <code>BACKEND_CORS_ORIGINS</code> in the <code>.env</code> file.</p>
+<ul>
+<li><p>Open your <code>hosts</code> file with administrative privileges using a text editor:</p>
+<ul>
+<li><strong>Note for Windows</strong>: If you are in Windows, open the main Windows menu, search for &quot;notepad&quot;, right click on it, and select the option &quot;open as Administrator&quot; or similar. Then click the &quot;File&quot; menu, &quot;Open file&quot;, go to the directory <code>c:\Windows\System32\Drivers\etc\</code>, select the option to show &quot;All files&quot; instead of only &quot;Text (.txt) files&quot;, and open the <code>hosts</code> file.</li>
+<li><strong>Note for Mac and Linux</strong>: Your <code>hosts</code> file is probably located at <code>/etc/hosts</code>, you can edit it in a terminal running <code>sudo nano /etc/hosts</code>.</li>
+</ul>
+</li>
+<li><p>Additional to the contents it might have, add a new line with the custom IP (e.g. <code>192.168.99.150</code>) a space character, and your fake local domain: <code>dev.andrijajovanovic.tk</code>.</p>
+</li>
+</ul>
+<p>The new line might look like:</p>
+<pre><code>192.168.99.100    dev.andrijajovanovic.tk
+</code></pre>
+<ul>
+<li>Save the file.<ul>
+<li><strong>Note for Windows</strong>: Make sure you save the file as &quot;All files&quot;, without an extension of <code>.txt</code>. By default, Windows tries to add the extension. Make sure the file is saved as is, without extension.</li>
+</ul>
+</li>
+</ul>
+<p>...that will make your computer think that the fake local domain is served by that custom IP, and when you open that URL in your browser, it will talk directly to your locally running server when it is asked to go to <code>dev.andrijajovanovic.tk</code> and think that it is a remote server while it is actually running in your computer.</p>
+<p>To configure it in your stack, follow the section <strong>Change the development &quot;domain&quot;</strong> below, using the domain <code>dev.andrijajovanovic.tk</code>.</p>
+<p>After performing those steps you should be able to open: http://dev.andrijajovanovic.tk and it will be server by your stack in <code>localhost</code>.</p>
+<p>Check all the corresponding available URLs in the section at the end.</p>
+<h3>Change the development &quot;domain&quot;</h3>
+<p>If you need to use your local stack with a different domain than <code>localhost</code>, you need to make sure the domain you use points to the IP where your stack is set up. See the different ways to achieve that in the sections above (i.e. using Docker Toolbox with <code>local.dockertoolbox.tiangolo.com</code>, using <code>localhost.tiangolo.com</code> or using <code>dev.andrijajovanovic.tk</code>).</p>
+<p>To simplify your Docker Compose setup, for example, so that the API docs (Swagger UI) knows where is your API, you should let it know you are using that domain for development. You will need to edit 1 line in 2 files.</p>
+<ul>
+<li>Open the file located at <code>./.env</code>. It would have a line like:</li>
+</ul>
+<pre><code>DOMAIN=localhost
+</code></pre>
+<ul>
+<li>Change it to the domain you are going to use, e.g.:</li>
+</ul>
+<pre><code>DOMAIN=localhost.tiangolo.com
+</code></pre>
+<p>That variable will be used by the Docker Compose files.</p>
+<ul>
+<li>Now open the file located at <code>./frontend/.env</code>. It would have a line like:</li>
+</ul>
+<pre><code>VUE_APP_DOMAIN_DEV=localhost
+</code></pre>
+<ul>
+<li>Change that line to the domain you are going to use, e.g.:</li>
+</ul>
+<pre><code>VUE_APP_DOMAIN_DEV=localhost.tiangolo.com
+</code></pre>
+<p>That variable will make your frontend communicate with that domain when interacting with your backend API, when the other variable <code>VUE_APP_ENV</code> is set to <code>development</code>.</p>
+<p>After changing the two lines, you can re-start your stack with:</p>
+<pre><code class="language-bash">docker-compose up -d
+</code></pre>
+<p>and check all the corresponding available URLs in the section at the end.</p>
+<h2>Frontend development</h2>
+<ul>
+<li>Enter the <code>frontend</code> directory, install the NPM packages and start the live server using the <code>npm</code> scripts:</li>
+</ul>
+<pre><code class="language-bash">cd frontend
+npm install
+npm run serve
+</code></pre>
+<p>Then open your browser at http://localhost:8080</p>
+<p>Notice that this live server is not running inside Docker, it is for local development, and that is the recommended workflow. Once you are happy with your frontend, you can build the frontend Docker image and start it, to test it in a production-like environment. But compiling the image at every change will not be as productive as running the local development server with live reload.</p>
+<p>Check the file <code>package.json</code> to see other available options.</p>
+<p>If you have Vue CLI installed, you can also run <code>vue ui</code> to control, configure, serve, and analyze your application using a nice local web user interface.</p>
+<p>If you are only developing the frontend (e.g. other team members are developing the backend) and there is a staging environment already deployed, you can make your local development code use that staging API instead of a full local Docker Compose stack.</p>
+<p>To do that, modify the file <code>./frontend/.env</code>, there's a section with:</p>
+<pre><code>VUE_APP_ENV=development
+# VUE_APP_ENV=staging
+</code></pre>
+<ul>
+<li>Switch the comment, to:</li>
+</ul>
+<pre><code># VUE_APP_ENV=development
+VUE_APP_ENV=staging
+</code></pre>
+<h3>Removing the frontend</h3>
+<p>If you are developing an API-only app and want to remove the frontend, you can do it easily:</p>
+<ul>
+<li>Remove the <code>./frontend</code> directory.</li>
+<li>In the <code>docker-compose.yml</code> file, remove the whole service / section <code>frontend</code>.</li>
+<li>In the <code>docker-compose.override.yml</code> file, remove the whole service / section <code>frontend</code>.</li>
+</ul>
+<p>Done, you have a frontend-less (api-only) app. 🔥 🚀</p>
+<hr>
+<p>If you want, you can also remove the <code>FRONTEND</code> environment variables from:</p>
+<ul>
+<li><code>.env</code></li>
+<li><code>.gitlab-ci.yml</code></li>
+<li><code>./scripts/*.sh</code></li>
+</ul>
+<p>But it would be only to clean them up, leaving them won't really have any effect either way.</p>
+<h2>Deployment</h2>
+<p>You can deploy the stack to a Docker Swarm mode cluster with a main Traefik proxy, set up using the ideas from <a href="https://dockerswarm.rocks" target="_blank">DockerSwarm.rocks</a>, to get automatic HTTPS certificates, etc.</p>
+<p>And you can use CI (continuous integration) systems to do it automatically.</p>
+<p>But you have to configure a couple things first.</p>
+<h3>Traefik network</h3>
+<p>This stack expects the public Traefik network to be named <code>traefik-public</code>, just as in the tutorials in <a href="https://dockerswarm.rocks" class="external-link" target="_blank">DockerSwarm.rocks</a>.</p>
+<p>If you need to use a different Traefik public network name, update it in the <code>docker-compose.yml</code> files, in the section:</p>
+<pre><code class="language-YAML">networks:
+  traefik-public:
+    external: true
+</code></pre>
+<p>Change <code>traefik-public</code> to the name of the used Traefik network. And then update it in the file <code>.env</code>:</p>
+<pre><code class="language-bash">TRAEFIK_PUBLIC_NETWORK=traefik-public
+</code></pre>
+<h3>Persisting Docker named volumes</h3>
+<p>You need to make sure that each service (Docker container) that uses a volume is always deployed to the same Docker &quot;node&quot; in the cluster, that way it will preserve the data. Otherwise, it could be deployed to a different node each time, and each time the volume would be created in that new node before starting the service. As a result, it would look like your service was starting from scratch every time, losing all the previous data.</p>
+<p>That's specially important for a service running a database. But the same problem would apply if you were saving files in your main backend service (for example, if those files were uploaded by your users, or if they were created by your system).</p>
+<p>To solve that, you can put constraints in the services that use one or more data volumes (like databases) to make them be deployed to a Docker node with a specific label. And of course, you need to have that label assigned to one (only one) of your nodes.</p>
+<h4>Adding services with volumes</h4>
+<p>For each service that uses a volume (databases, services with uploaded files, etc) you should have a label constraint in your <code>docker-compose.yml</code> file.</p>
+<p>To make sure that your labels are unique per volume per stack (for example, that they are not the same for <code>prod</code> and <code>stag</code>) you should prefix them with the name of your stack and then use the same name of the volume.</p>
+<p>Then you need to have those constraints in your <code>docker-compose.yml</code> file for the services that need to be fixed with each volume.</p>
+<p>To be able to use different environments, like <code>prod</code> and <code>stag</code>, you should pass the name of the stack as an environment variable. Like:</p>
+<pre><code class="language-bash">STACK_NAME=stag-andrijajovanovic-tk sh ./scripts/deploy.sh
+</code></pre>
+<p>To use and expand that environment variable inside the <code>docker-compose.yml</code> files you can add the constraints to the services like:</p>
+<pre><code class="language-yaml">version: '3'
+services:
+  db:
+    volumes:
+      - 'app-db-data:/var/lib/postgresql/data/pgdata'
+    deploy:
+      placement:
+        constraints:
+          - node.labels.${STACK_NAME?Variable not set}.app-db-data == true
+</code></pre>
+<p>note the <code>${STACK_NAME?Variable not set}</code>. In the script <code>./scripts/deploy.sh</code>, the <code>docker-compose.yml</code> would be converted, and saved to a file <code>docker-stack.yml</code> containing:</p>
+<pre><code class="language-yaml">version: '3'
+services:
+  db:
+    volumes:
+      - 'app-db-data:/var/lib/postgresql/data/pgdata'
+    deploy:
+      placement:
+        constraints:
+          - node.labels.andrijajovanovic-tk.app-db-data == true
+</code></pre>
+<p><strong>Note</strong>: The <code>${STACK_NAME?Variable not set}</code> means &quot;use the environment variable <code>STACK_NAME</code>, but if it is not set, show an error <code>Variable not set</code>&quot;.</p>
+<p>If you add more volumes to your stack, you need to make sure you add the corresponding constraints to the services that use that named volume.</p>
+<p>Then you have to create those labels in some nodes in your Docker Swarm mode cluster. You can use <code>docker-auto-labels</code> to do it automatically.</p>
+<h4><code>docker-auto-labels</code></h4>
+<p>You can use <a href="https://github.com/tiangolo/docker-auto-labels"><code>docker-auto-labels</code></a> to automatically read the placement constraint labels in your Docker stack (Docker Compose file) and assign them to a random Docker node in your Swarm mode cluster if those labels don't exist yet.</p>
+<p>To do that, you can install <code>docker-auto-labels</code>:</p>
+<pre><code class="language-bash">pip install docker-auto-labels
+</code></pre>
+<p>And then run it passing your <code>docker-stack.yml</code> file as a parameter:</p>
+<pre><code class="language-bash">docker-auto-labels docker-stack.yml
+</code></pre>
+<p>You can run that command every time you deploy, right before deploying, as it doesn't modify anything if the required labels already exist.</p>
+<h4>(Optionally) adding labels manually</h4>
+<p>If you don't want to use <code>docker-auto-labels</code> or for any reason you want to manually assign the constraint labels to specific nodes in your Docker Swarm mode cluster, you can do the following:</p>
+<ul>
+<li><p>First, connect via SSH to your Docker Swarm mode cluster.</p>
+</li>
+<li><p>Then check the available nodes with:</p>
+</li>
+</ul>
+<pre><code class="language-console">$ docker node ls
+
+
+// you would see an output like:
+
+ID                            HOSTNAME               STATUS              AVAILABILITY        MANAGER STATUS
+nfa3d4df2df34as2fd34230rm *   dog.example.com        Ready               Active              Reachable
+2c2sd2342asdfasd42342304e     cat.example.com        Ready               Active              Leader
+c4sdf2342asdfasd4234234ii     snake.example.com      Ready               Active              Reachable
+</code></pre>
+<p>then chose a node from the list. For example, <code>dog.example.com</code>.</p>
+<ul>
+<li>Add the label to that node. Use as label the name of the stack you are deploying followed by a dot (<code>.</code>) followed by the named volume, and as value, just <code>true</code>, e.g.:</li>
+</ul>
+<pre><code class="language-bash">docker node update --label-add andrijajovanovic-tk.app-db-data=true dog.example.com
+</code></pre>
+<ul>
+<li>Then you need to do the same for each stack version you have. For example, for staging you could do:</li>
+</ul>
+<pre><code class="language-bash">docker node update --label-add stag-andrijajovanovic-tk.app-db-data=true cat.example.com
+</code></pre>
+<h3>Deploy to a Docker Swarm mode cluster</h3>
+<p>There are 3 steps:</p>
+<ol>
+<li><strong>Build</strong> your app images</li>
+<li>Optionally, <strong>push</strong> your custom images to a Docker Registry</li>
+<li><strong>Deploy</strong> your stack</li>
+</ol>
+<hr>
+<p>Here are the steps in detail:</p>
+<ol>
+<li><strong>Build your app images</strong></li>
+</ol>
+<ul>
+<li>Set these environment variables, right before the next command:<ul>
+<li><code>TAG=prod</code></li>
+<li><code>FRONTEND_ENV=production</code></li>
+</ul>
+</li>
+<li>Use the provided <code>scripts/build.sh</code> file with those environment variables:</li>
+</ul>
+<pre><code class="language-bash">TAG=prod FRONTEND_ENV=production bash ./scripts/build.sh
+</code></pre>
+<ol start="2">
+<li><strong>Optionally, push your images to a Docker Registry</strong></li>
+</ol>
+<p><strong>Note</strong>: if the deployment Docker Swarm mode &quot;cluster&quot; has more than one server, you will have to push the images to a registry or build the images in each server, so that when each of the servers in your cluster tries to start the containers it can get the Docker images for them, pulling them from a Docker Registry or because it has them already built locally.</p>
+<p>If you are using a registry and pushing your images, you can omit running the previous script and instead using this one, in a single shot.</p>
+<ul>
+<li>Set these environment variables:<ul>
+<li><code>TAG=prod</code></li>
+<li><code>FRONTEND_ENV=production</code></li>
+</ul>
+</li>
+<li>Use the provided <code>scripts/build-push.sh</code> file with those environment variables:</li>
+</ul>
+<pre><code class="language-bash">TAG=prod FRONTEND_ENV=production bash ./scripts/build-push.sh
+</code></pre>
+<ol start="3">
+<li><strong>Deploy your stack</strong></li>
+</ol>
+<ul>
+<li>Set these environment variables:<ul>
+<li><code>DOMAIN=andrijajovanovic.tk</code></li>
+<li><code>TRAEFIK_TAG=andrijajovanovic.tk</code></li>
+<li><code>STACK_NAME=andrijajovanovic-tk</code></li>
+<li><code>TAG=prod</code></li>
+</ul>
+</li>
+<li>Use the provided <code>scripts/deploy.sh</code> file with those environment variables:</li>
+</ul>
+<pre><code class="language-bash">DOMAIN=andrijajovanovic.tk \
+TRAEFIK_TAG=andrijajovanovic.tk \
+STACK_NAME=andrijajovanovic-tk \
+TAG=prod \
+bash ./scripts/deploy.sh
+</code></pre>
+<hr>
+<p>If you change your mind and, for example, want to deploy everything to a different domain, you only have to change the <code>DOMAIN</code> environment variable in the previous commands. If you wanted to add a different version / environment of your stack, like &quot;<code>preproduction</code>&quot;, you would only have to set <code>TAG=preproduction</code> in your command and update these other environment variables accordingly. And it would all work, that way you could have different environments and deployments of the same app in the same cluster.</p>
+<h4>Deployment Technical Details</h4>
+<p>Building and pushing is done with the <code>docker-compose.yml</code> file, using the <code>docker-compose</code> command. The file <code>docker-compose.yml</code> uses the file <code>.env</code> with default environment variables. And the scripts set some additional environment variables as well.</p>
+<p>The deployment requires using <code>docker stack</code> instead of <code>docker-swarm</code>, and it can't read environment variables or <code>.env</code> files. Because of that, the <code>deploy.sh</code> script generates a file <code>docker-stack.yml</code> with the configurations from <code>docker-compose.yml</code> and injecting the environment variables in it. And then uses it to deploy the stack.</p>
+<p>You can do the process by hand based on those same scripts if you wanted. The general structure is like this:</p>
+<pre><code class="language-bash"># Use the environment variables passed to this script, as TAG and FRONTEND_ENV
+# And re-create those variables as environment variables for the next command
+TAG=${TAG?Variable not set} \
+# Set the environment variable FRONTEND_ENV to the same value passed to this script with
+# a default value of &quot;production&quot; if nothing else was passed
+FRONTEND_ENV=${FRONTEND_ENV-production?Variable not set} \
+# The actual comand that does the work: docker-compose
+docker-compose \
+# Pass the file that should be used, setting explicitly docker-compose.yml avoids the
+# default of also using docker-compose.override.yml
+-f docker-compose.yml \
+# Use the docker-compose sub command named &quot;config&quot;, it just uses the docker-compose.yml
+# file passed to it and prints their combined contents
+# Put those contents in a file &quot;docker-stack.yml&quot;, with &quot;&gt;&quot;
+config &gt; docker-stack.yml
+
+# The previous only generated a docker-stack.yml file,
+# but didn't do anything with it yet
+
+# docker-auto-labels makes sure the labels used for constraints exist in the cluster
+docker-auto-labels docker-stack.yml
+
+# Now this command uses that same file to deploy it
+docker stack deploy -c docker-stack.yml --with-registry-auth &quot;${STACK_NAME?Variable not set}&quot;
+</code></pre>
+<h3>Continuous Integration / Continuous Delivery</h3>
+<p>If you use GitLab CI, the included <code>.gitlab-ci.yml</code> can automatically deploy it. You may need to update it according to your GitLab configurations.</p>
+<p>If you use any other CI / CD provider, you can base your deployment from that <code>.gitlab-ci.yml</code> file, as all the actual script steps are performed in <code>bash</code> scripts that you can easily re-use.</p>
+<p>GitLab CI is configured assuming 2 environments following GitLab flow:</p>
+<ul>
+<li><code>prod</code> (production) from the <code>production</code> branch.</li>
+<li><code>stag</code> (staging) from the <code>master</code> branch.</li>
+</ul>
+<p>If you need to add more environments, for example, you could imagine using a client-approved <code>preprod</code> branch, you can just copy the configurations in <code>.gitlab-ci.yml</code> for <code>stag</code> and rename the corresponding variables. The Docker Compose file and environment variables are configured to support as many environments as you need, so that you only need to modify <code>.gitlab-ci.yml</code> (or whichever CI system configuration you are using).</p>
+<h2>Docker Compose files and env vars</h2>
+<p>There is a main <code>docker-compose.yml</code> file with all the configurations that apply to the whole stack, it is used automatically by <code>docker-compose</code>.</p>
+<p>And there's also a <code>docker-compose.override.yml</code> with overrides for development, for example to mount the source code as a volume. It is used automatically by <code>docker-compose</code> to apply overrides on top of <code>docker-compose.yml</code>.</p>
+<p>These Docker Compose files use the <code>.env</code> file containing configurations to be injected as environment variables in the containers.</p>
+<p>They also use some additional configurations taken from environment variables set in the scripts before calling the <code>docker-compose</code> command.</p>
+<p>It is all designed to support several &quot;stages&quot;, like development, building, testing, and deployment. Also, allowing the deployment to different environments like staging and production (and you can add more environments very easily).</p>
+<p>They are designed to have the minimum repetition of code and configurations, so that if you need to change something, you have to change it in the minimum amount of places. That's why files use environment variables that get auto-expanded. That way, if for example, you want to use a different domain, you can call the <code>docker-compose</code> command with a different <code>DOMAIN</code> environment variable instead of having to change the domain in several places inside the Docker Compose files.</p>
+<p>Also, if you want to have another deployment environment, say <code>preprod</code>, you just have to change environment variables, but you can keep using the same Docker Compose files.</p>
+<h3>The .env file</h3>
+<p>The <code>.env</code> file is the one that contains all your configurations, generated keys and passwords, etc.</p>
+<p>Depending on your workflow, you could want to exclude it from Git, for example if your project is public. In that case, you would have to make sure to set up a way for your CI tools to obtain it while building or deploying your project.</p>
+<p>One way to do it could be to add each environment variable to your CI/CD system, and updating the <code>docker-compose.yml</code> file to read that specific env var instead of reading the <code>.env</code> file.</p>
+<h2>URLs</h2>
+<p>These are the URLs that will be used and generated by the project.</p>
+<h3>Production URLs</h3>
+<p>Production URLs, from the branch <code>production</code>.</p>
+<p>Frontend: https://andrijajovanovic.tk</p>
+<p>Backend: https://andrijajovanovic.tk/api/</p>
+<p>Automatic Interactive Docs (Swagger UI): https://andrijajovanovic.tk/docs</p>
+<p>Automatic Alternative Docs (ReDoc): https://andrijajovanovic.tk/redoc</p>
+<p>PGAdmin: https://pgadmin.andrijajovanovic.tk</p>
+<p>Flower: https://flower.andrijajovanovic.tk</p>
+<h3>Staging URLs</h3>
+<p>Staging URLs, from the branch <code>master</code>.</p>
+<p>Frontend: https://stag.andrijajovanovic.tk</p>
+<p>Backend: https://stag.andrijajovanovic.tk/api/</p>
+<p>Automatic Interactive Docs (Swagger UI): https://stag.andrijajovanovic.tk/docs</p>
+<p>Automatic Alternative Docs (ReDoc): https://stag.andrijajovanovic.tk/redoc</p>
+<p>PGAdmin: https://pgadmin.stag.andrijajovanovic.tk</p>
+<p>Flower: https://flower.stag.andrijajovanovic.tk</p>
+<h3>Development URLs</h3>
+<p>Development URLs, for local development.</p>
+<p>Frontend: http://localhost</p>
+<p>Backend: http://localhost/api/</p>
+<p>Automatic Interactive Docs (Swagger UI): https://localhost/docs</p>
+<p>Automatic Alternative Docs (ReDoc): https://localhost/redoc</p>
+<p>PGAdmin: http://localhost:5050</p>
+<p>Flower: http://localhost:5555</p>
+<p>Traefik UI: http://localhost:8090</p>
+<h3>Development with Docker Toolbox URLs</h3>
+<p>Development URLs, for local development.</p>
+<p>Frontend: http://local.dockertoolbox.tiangolo.com</p>
+<p>Backend: http://local.dockertoolbox.tiangolo.com/api/</p>
+<p>Automatic Interactive Docs (Swagger UI): https://local.dockertoolbox.tiangolo.com/docs</p>
+<p>Automatic Alternative Docs (ReDoc): https://local.dockertoolbox.tiangolo.com/redoc</p>
+<p>PGAdmin: http://local.dockertoolbox.tiangolo.com:5050</p>
+<p>Flower: http://local.dockertoolbox.tiangolo.com:5555</p>
+<p>Traefik UI: http://local.dockertoolbox.tiangolo.com:8090</p>
+<h3>Development with a custom IP URLs</h3>
+<p>Development URLs, for local development.</p>
+<p>Frontend: http://dev.andrijajovanovic.tk</p>
+<p>Backend: http://dev.andrijajovanovic.tk/api/</p>
+<p>Automatic Interactive Docs (Swagger UI): https://dev.andrijajovanovic.tk/docs</p>
+<p>Automatic Alternative Docs (ReDoc): https://dev.andrijajovanovic.tk/redoc</p>
+<p>PGAdmin: http://dev.andrijajovanovic.tk:5050</p>
+<p>Flower: http://dev.andrijajovanovic.tk:5555</p>
+<p>Traefik UI: http://dev.andrijajovanovic.tk:8090</p>
+<h3>Development in localhost with a custom domain URLs</h3>
+<p>Development URLs, for local development.</p>
+<p>Frontend: http://localhost.tiangolo.com</p>
+<p>Backend: http://localhost.tiangolo.com/api/</p>
+<p>Automatic Interactive Docs (Swagger UI): https://localhost.tiangolo.com/docs</p>
+<p>Automatic Alternative Docs (ReDoc): https://localhost.tiangolo.com/redoc</p>
+<p>PGAdmin: http://localhost.tiangolo.com:5050</p>
+<p>Flower: http://localhost.tiangolo.com:5555</p>
+<p>Traefik UI: http://localhost.tiangolo.com:8090</p>
+<h2>Project generation and updating, or re-generating</h2>
+<p>This project was generated using https://github.com/tiangolo/full-stack-fastapi-postgresql with:</p>
+<pre><code class="language-bash">pip install cookiecutter
+cookiecutter https://github.com/tiangolo/full-stack-fastapi-postgresql
+</code></pre>
+<p>You can check the variables used during generation in the file <code>cookiecutter-config-file.yml</code>.</p>
+<p>You can generate the project again with the same configurations used the first time.</p>
+<p>That would be useful if, for example, the project generator (<code>tiangolo/full-stack-fastapi-postgresql</code>) was updated and you wanted to integrate or review the changes.</p>
+<p>You could generate a new project with the same configurations as this one in a parallel directory. And compare the differences between the two, without having to overwrite your current code but being able to use the same variables used for your current project.</p>
+<p>To achieve that, the generated project includes the file <code>cookiecutter-config-file.yml</code> with the current variables used.</p>
+<p>You can use that file while generating a new project to reuse all those variables.</p>
+<p>For example, run:</p>
+<pre><code class="language-console">$ cookiecutter --config-file ./cookiecutter-config-file.yml --output-dir ../project-copy https://github.com/tiangolo/full-stack-fastapi-postgresql
+</code></pre>
+<p>That will use the file <code>cookiecutter-config-file.yml</code> in the current directory (in this project) to generate a new project inside a sibling directory <code>project-copy</code>.</p>
